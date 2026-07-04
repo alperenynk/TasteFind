@@ -1,0 +1,7 @@
+# BACKEND
+backend/node_modules
+backend/.env
+
+# MOBILE
+mobile/node_modules
+mobile/.env
