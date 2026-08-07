@@ -59,6 +59,13 @@ const SignInScreen = () => {
         await setActive({
           session: signInAttempt.createdSessionId,
         });
+      } else if (signInAttempt.status === "needs_second_factor") {
+        router.push({
+          pathname: "/(auth)/verify-second-factor",
+          params: {
+            email: normalizedEmail,
+          },
+        });
       } else {
         Alert.alert("Error", "Sign in failed. Please try again.");
         console.error(JSON.stringify(signInAttempt, null, 2));
