@@ -25,6 +25,7 @@ const VerifySecondFactor = () => {
 
     const [code, setCode] = useState("");
     const [loading, setLoading] = useState(false);
+    const [resending, setResending] = useState(false);
 
     const handleVerification = useCallback(async () => {
         Keyboard.dismiss();
@@ -67,6 +68,29 @@ const VerifySecondFactor = () => {
             setLoading(false);
         }
     }, [code, isLoaded, signIn, setActive]);
+
+    const handleResendCode = useCallback(async () => {
+        if (!isLoaded) return;
+
+        setResending(true);
+
+        try {
+            await signIn.prepareSecondFactor({
+                strategy: "email_code",
+            });
+
+            Alert.alert("Success", "A new verification code has been sent.");
+        } catch (err) {
+            Alert.alert(
+                "Error",
+                err.errors?.[0]?.message || "Failed to resend verification code."
+            );
+
+            console.log(err);
+        } finally {
+            setResending(false);
+        }
+    }, [isLoaded, signIn]);
 
     return (
         <View style={authStyles.container}>
@@ -124,6 +148,22 @@ const VerifySecondFactor = () => {
                         >
                             <Text style={authStyles.buttonText}>
                                 {loading ? "Verifying..." : "Verify Email"}
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            style={({ pressed }) => [
+                                authStyles.linkContainer,
+                                pressed && !resending && { opacity: 0.8 },
+                            ]}
+                            onPress={handleResendCode}
+                            disabled={resending}
+                        >
+                            <Text style={authStyles.linkText}>
+                                Didn't receive the code?{" "}
+                                <Text style={authStyles.link}>
+                                    {resending ? "Sending..." : "Resend Code"}
+                                </Text>
                             </Text>
                         </Pressable>
 
