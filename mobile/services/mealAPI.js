@@ -2,6 +2,27 @@ const BASE_URL = "https://www.themealdb.com/api/json/v1/1";
 
 const isAbortError = (error) => error?.name === "AbortError";
 
+const getRandomItem = (array) => {
+  return array[Math.floor(Math.random() * array.length)];
+};
+
+const cookTimes = [
+  "15 min",
+  "20 min",
+  "25 min",
+  "30 min",
+  "35 min",
+  "40 min",
+  "45 min",
+  "50 min",
+  "60 min",
+  "75 min",
+];
+
+const servings = [
+  3, 3, 4, 4, 4, 5, 6,
+];
+
 export const MealAPI = {
   searchMealsByName: async (query, signal) => {
     try {
@@ -124,10 +145,10 @@ export const MealAPI = {
         ? meal.strInstructions.substring(0, 120) + "..."
         : "Delicious meal from TheMealDB",
       image: meal.strMealThumb,
-      cookTime: "30 minutes",
-      servings: 4,
+      cookTime: getRandomItem(cookTimes),
+      servings: getRandomItem(servings),
       category: meal.strCategory || "Main Course",
-      area: meal.strArea,
+      area: meal.strArea?.trim() || "Unknown",
       ingredients,
       instructions,
       originalData: meal,
