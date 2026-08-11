@@ -1,87 +1,99 @@
 const BASE_URL = "https://www.themealdb.com/api/json/v1/1";
 
+const isAbortError = (error) => error?.name === "AbortError";
+
 export const MealAPI = {
-  searchMealsByName: async (query) => {
+  searchMealsByName: async (query, signal) => {
     try {
       const response = await fetch(
         `${BASE_URL}/search.php?s=${encodeURIComponent(query)}`,
+        { signal }
       );
       const data = await response.json();
       return data.meals || [];
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.error("Error searching meals by name:", error);
       return [];
     }
   },
 
-  getMealById: async (id) => {
+  getMealById: async (id, signal) => {
     try {
-      const response = await fetch(`${BASE_URL}/lookup.php?i=${id}`);
+      const response = await fetch(`${BASE_URL}/lookup.php?i=${id}`, { signal });
       const data = await response.json();
       return data.meals ? data.meals[0] : null;
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.error("Error getting meal by id:", error);
       return null;
     }
   },
 
-  getRandomMeal: async () => {
+  getRandomMeal: async (signal) => {
     try {
-      const response = await fetch(`${BASE_URL}/random.php`);
+      const response = await fetch(`${BASE_URL}/random.php`, { signal });
       const data = await response.json();
       return data.meals ? data.meals[0] : null;
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.error("Error getting random meal:", error);
       return null;
     }
   },
 
   // get multiple random meals
-  getRandomMeals: async (count = 6) => {
+  getRandomMeals: async (count = 6, signal) => {
     try {
       const promises = Array(count)
         .fill()
-        .map(() => MealAPI.getRandomMeal());
+        .map(() => MealAPI.getRandomMeal(signal));
       const meals = await Promise.all(promises);
       return meals.filter((meal) => meal !== null);
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.error("Error getting random meals:", error);
       return [];
     }
   },
 
-  getCategories: async () => {
+  getCategories: async (signal) => {
     try {
-      const response = await fetch(`${BASE_URL}/categories.php`);
+      const response = await fetch(`${BASE_URL}/categories.php`, { signal });
       const data = await response.json();
       return data.categories || [];
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.error("Error getting categories:", error);
       return [];
     }
   },
 
-  filterByIngredient: async (ingredient) => {
+  filterByIngredient: async (ingredient, signal) => {
     try {
       const response = await fetch(
         `${BASE_URL}/filter.php?i=${encodeURIComponent(ingredient)}`,
+        { signal }
       );
       const data = await response.json();
       return data.meals || [];
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.error("Error filtering by ingredient:", error);
       return [];
     }
   },
 
-  filterByCategory: async (category) => {
+  filterByCategory: async (category, signal) => {
     try {
       const response = await fetch(
         `${BASE_URL}/filter.php?c=${encodeURIComponent(category)}`,
+        { signal }
       );
       const data = await response.json();
       return data.meals || [];
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.error("Error filtering by category:", error);
       return [];
     }
