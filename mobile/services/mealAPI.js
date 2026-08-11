@@ -23,6 +23,33 @@ const servings = [
   3, 3, 4, 4, 4, 5, 6,
 ];
 
+const descriptions = [
+  "A taste of traditional home cooking.",
+  "A recipe rooted in local traditions.",
+  "A familiar dish with a regional touch.",
+  "Simple ingredients, traditional preparation.",
+  "A recipe commonly found in local kitchens.",
+  "A dish shaped by its culinary heritage.",
+  "A home-style recipe worth discovering.",
+  "A traditional recipe from its region.",
+  "A dish with a distinct cultural character.",
+  "A recipe made to be shared and enjoyed.",
+];
+
+const mealMeta = {};
+
+const getMealMeta = (id) => {
+  if (!mealMeta[id]) {
+    mealMeta[id] = {
+      cookTime: getRandomItem(cookTimes),
+      servings: getRandomItem(servings),
+      description: getRandomItem(descriptions),
+    };
+  }
+
+  return mealMeta[id];
+};
+
 export const MealAPI = {
   searchMealsByName: async (query, signal) => {
     try {
@@ -123,6 +150,8 @@ export const MealAPI = {
   transformMealData: (meal) => {
     if (!meal) return null;
 
+    const meta = getMealMeta(meal.idMeal);
+
     const ingredients = [];
     for (let i = 1; i <= 20; i++) {
       const ingredient = meal[`strIngredient${i}`];
@@ -141,12 +170,10 @@ export const MealAPI = {
     return {
       id: meal.idMeal,
       title: meal.strMeal,
-      description: meal.strInstructions
-        ? meal.strInstructions.substring(0, 120) + "..."
-        : "Delicious meal from TheMealDB",
+      description: meta.description,
       image: meal.strMealThumb,
-      cookTime: getRandomItem(cookTimes),
-      servings: getRandomItem(servings),
+      cookTime: meta.cookTime,
+      servings: meta.servings,
       category: meal.strCategory || "Main Course",
       area: meal.strArea?.trim() || "Unknown",
       ingredients,

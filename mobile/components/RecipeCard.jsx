@@ -62,16 +62,16 @@ const RecipeCard = ({ recipe }) => {
             </View>
           )}
 
-          {recipe.servings && (
+          {recipe.area && (
             <View style={recipeCardStyles.servingsContainer}>
               <Ionicons
-                name="people-outline"
+                name="location-outline"
                 size={14}
                 color={COLORS.textLight}
               />
 
-              <Text style={recipeCardStyles.servingsText}>
-                {recipe.servings}
+              <Text style={recipeCardStyles.servingsText} numberOfLines={1}>
+                {recipe.area}
               </Text>
             </View>
           )}

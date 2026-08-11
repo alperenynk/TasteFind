@@ -213,9 +213,13 @@ export const recipeCardStyles = StyleSheet.create({
     backgroundColor: COLORS.border,
   },
   content: {
+    flex: 1,
     padding: 12,
+    justifyContent: "space-between",
   },
   title: {
+    textAlign: "center",
+    textTransform: "capitalize",
     fontSize: 15,
     fontWeight: "700",
     color: COLORS.text,
