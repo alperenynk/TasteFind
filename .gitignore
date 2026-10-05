@@ -5,3 +5,14 @@ backend/.env
 # MOBILE
 mobile/node_modules
 mobile/.env
+
+# Genel
+.DS_Store
+*.log
+.expo/
+dist/
+
+# Env files (keep examples)
+.env
+.env.*
+!.env.example
