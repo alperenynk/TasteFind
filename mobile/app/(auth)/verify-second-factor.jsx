@@ -16,6 +16,7 @@ import { Image } from "expo-image";
 
 import { authStyles } from "../../assets/styles/auth.styles";
 import { COLORS } from "../../constants/colors";
+import { logger } from "../../utils/logger";
 
 const VerifySecondFactor = () => {
     const router = useRouter();
@@ -55,7 +56,7 @@ const VerifySecondFactor = () => {
                     "Verification failed. Please try again."
                 );
 
-                console.log(result);
+                logger.log(result);
             }
         } catch (err) {
             Alert.alert(
@@ -63,7 +64,7 @@ const VerifySecondFactor = () => {
                 err.errors?.[0]?.message || "Verification failed."
             );
 
-            console.log(err);
+            logger.log(err);
         } finally {
             setLoading(false);
         }
@@ -86,7 +87,7 @@ const VerifySecondFactor = () => {
                 err.errors?.[0]?.message || "Failed to resend verification code."
             );
 
-            console.log(err);
+            logger.log(err);
         } finally {
             setResending(false);
         }
@@ -160,7 +161,7 @@ const VerifySecondFactor = () => {
                             disabled={resending}
                         >
                             <Text style={authStyles.linkText}>
-                                Didn't receive the code?{" "}
+                                Didn&apos;t receive the code?{" "}
                                 <Text style={authStyles.link}>
                                     {resending ? "Sending..." : "Resend Code"}
                                 </Text>

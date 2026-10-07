@@ -62,7 +62,7 @@ const RecipeCard = ({ recipe }) => {
             </View>
           )}
 
-          {recipe.area && (
+          {recipe.area ? (
             <View style={recipeCardStyles.servingsContainer}>
               <Ionicons
                 name="location-outline"
@@ -74,7 +74,19 @@ const RecipeCard = ({ recipe }) => {
                 {recipe.area}
               </Text>
             </View>
-          )}
+          ) : recipe.servings ? (
+            <View style={recipeCardStyles.servingsContainer}>
+              <Ionicons
+                name="people-outline"
+                size={14}
+                color={COLORS.textLight}
+              />
+
+              <Text style={recipeCardStyles.servingsText} numberOfLines={1}>
+                {`${recipe.servings} servings`}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </Pressable>

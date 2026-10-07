@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, Pressable, FlatList } from "react-native";
+import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator } from "react-native";
 import { MealAPI } from "../../services/mealAPI";
 import { useDebounce } from "../../hooks/useDebounce";
 import { searchStyles } from "../../assets/styles/search.styles";
@@ -7,11 +7,13 @@ import { COLORS } from "../../constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import RecipeCard from "../../components/RecipeCard";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import { logger } from "../../utils/logger";
 
 const SearchScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [recipes, setRecipes] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -62,6 +64,7 @@ const SearchScreen = () => {
 
     const runSearch = async () => {
       setError(null);
+      setSearching(true);
 
       try {
         const results = await performSearch(debouncedSearchQuery, controller.signal);
@@ -69,13 +72,14 @@ const SearchScreen = () => {
         setRecipes(results);
       } catch (err) {
         if (err?.name === "AbortError") return;
-        console.error("Error searching:", err);
+        logger.error("Error searching:", err);
         if (isMounted.current && currentRequestId === requestIdRef.current) {
           setError("Arama sırasında bir sorun oluştu.");
         }
       } finally {
         if (isMounted.current && currentRequestId === requestIdRef.current) {
           setInitialLoading(false);
+          setSearching(false);
         }
       }
     };
@@ -129,7 +133,11 @@ const SearchScreen = () => {
           <Text style={searchStyles.resultsTitle}>
             {searchQuery ? `Results for "${searchQuery}"` : "Popular Recipes"}
           </Text>
-          {!error && <Text style={searchStyles.resultsCount}>{recipes.length} found</Text>}
+          {searching ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            !error && <Text style={searchStyles.resultsCount}>{recipes.length} found</Text>
+          )}
         </View>
 
         <FlatList

@@ -18,6 +18,7 @@ import { Image } from "expo-image";
 import { authStyles } from "../../assets/styles/auth.styles";
 import { COLORS } from "../../constants/colors";
 import VerifyEmail from "./verify-email";
+import { logger } from "../../utils/logger";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -79,7 +80,7 @@ const SignUpScreen = () => {
           : "Failed to create account";
 
       Alert.alert("Error", message);
-      console.error(err);
+      logger.error(err);
     } finally {
       setLoading(false);
     }

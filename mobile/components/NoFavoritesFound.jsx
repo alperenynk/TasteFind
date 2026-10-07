@@ -10,7 +10,7 @@ const NoFavoritesFound = () => {
   const router = useRouter();
 
   const handleExplore = useCallback(() => {
-    router.push("/");
+    router.navigate("/");
   }, [router]);
 
   return (

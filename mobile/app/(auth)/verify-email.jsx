@@ -15,6 +15,7 @@ import { Image } from "expo-image";
 
 import { authStyles } from "../../assets/styles/auth.styles";
 import { COLORS } from "../../constants/colors";
+import { logger } from "../../utils/logger";
 
 const VerifyEmail = ({ email, onBack }) => {
   const { signUp, setActive, isLoaded } = useSignUp();
@@ -45,12 +46,12 @@ const VerifyEmail = ({ email, onBack }) => {
         });
       } else {
         Alert.alert("Error", "Verification failed. Please try again.");
-        console.error(JSON.stringify(signUpAttempt, null, 2));
+        logger.error(JSON.stringify(signUpAttempt, null, 2));
       }
     } catch (err) {
       Alert.alert("Error", err.errors?.[0]?.message || "Verification failed");
 
-      console.error(JSON.stringify(err, null, 2));
+      logger.error(JSON.stringify(err, null, 2));
     } finally {
       setLoading(false);
     }

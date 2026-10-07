@@ -1,5 +1,5 @@
-import { View, Text, Pressable, FlatList, RefreshControl } from "react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, FlatList, RefreshControl, ActivityIndicator } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { MealAPI } from "../../services/mealAPI";
 import { homeStyles } from "../../assets/styles/home.styles";
@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import CategoryFilter from "../../components/CategoryFilter";
 import RecipeCard from "../../components/RecipeCard";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import { logger } from "../../utils/logger";
 
 const HomeScreen = () => {
   const router = useRouter();
@@ -22,6 +23,9 @@ const HomeScreen = () => {
   const [error, setError] = useState(null);
 
   const isMounted = useRef(true);
+  // Seçili kategoriyi ref'te de tutuyoruz: handleCategorySelect referansı sabit kalsın,
+  // böylece kategori değişiminde header/CategoryFilter yeniden oluşmasın.
+  const selectedCategoryRef = useRef(null);
   const requestIdRef = useRef(0);
   const loadDataAbortRef = useRef(null);
   const categoryAbortRef = useRef(null);
@@ -59,7 +63,14 @@ const HomeScreen = () => {
       // tam detayıyla güncelle (filter.php sadece id/isim/thumbnail döndürüyor)
       if (meals && meals.length > 0) {
         const randomMeal = meals[Math.floor(Math.random() * meals.length)];
-        const fullMeal = await MealAPI.getMealById(randomMeal.idMeal, controller.signal);
+        let fullMeal = null;
+        try {
+          fullMeal = await MealAPI.getMealById(randomMeal.idMeal, controller.signal);
+        } catch (featuredErr) {
+          // Öne çıkan tarif alınamadıysa liste yine de gösterilsin
+          if (featuredErr?.name === "AbortError") throw featuredErr;
+          logger.error("Error loading featured recipe:", featuredErr);
+        }
 
         if (!isMounted.current || currentRequestId !== requestIdRef.current) return;
 
@@ -69,7 +80,7 @@ const HomeScreen = () => {
       }
     } catch (err) {
       if (err?.name === "AbortError") return; // iptal edildi, sessizce çık
-      console.error("Error loading category data:", err);
+      logger.error("Error loading category data:", err);
       if (isMounted.current && currentRequestId === requestIdRef.current) {
         setRecipes([]);
         setError("Bu kategori yüklenirken bir sorun oluştu.");
@@ -90,11 +101,7 @@ const HomeScreen = () => {
       setError(null);
       setLoading(true);
 
-      const [apiCategories, randomMeals, featuredMeal] = await Promise.all([
-        MealAPI.getCategories(controller.signal),
-        MealAPI.getRandomMeals(12, controller.signal),
-        MealAPI.getRandomMeal(controller.signal),
-      ]);
+      const apiCategories = await MealAPI.getCategories(controller.signal);
 
       if (!isMounted.current) return;
 
@@ -107,36 +114,41 @@ const HomeScreen = () => {
 
       setCategories(transformedCategories);
 
-      const initialCategory = transformedCategories[0]?.name ?? null;
-      if (!selectedCategory) setSelectedCategory(initialCategory);
+      // Yenilemede kullanıcının seçtiği kategori korunur; ilk açılışta ilk kategori seçilir
+      const activeCategory =
+        selectedCategoryRef.current ?? transformedCategories[0]?.name ?? null;
 
-      const transformedMeals = (randomMeals || [])
-        .map((meal) => MealAPI.transformMealData(meal))
-        .filter((meal) => meal !== null);
+      if (!activeCategory) {
+        setRecipes([]);
+        setError("Veriler yüklenemedi. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.");
+        return;
+      }
 
-      setRecipes(transformedMeals);
+      selectedCategoryRef.current = activeCategory;
+      setSelectedCategory(activeCategory);
 
-      const transformedFeatured = featuredMeal ? MealAPI.transformMealData(featuredMeal) : null;
-      setFeaturedRecipe(transformedFeatured);
+      // Seçili kategorinin yemekleri + o kategoriden bir "featured" tarif
+      await loadCategoryData(activeCategory);
     } catch (err) {
       if (err?.name === "AbortError") return;
-      console.log("Error loading the data", err);
+      logger.log("Error loading the data", err);
       if (isMounted.current) {
         setError("Veriler yüklenemedi. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.");
       }
     } finally {
-      if (isMounted.current) setLoading(false);
+      // Başka bir loadData başlamışsa (ör. dev'de çift effect) onun spinner'ını kapatma
+      if (isMounted.current && loadDataAbortRef.current === controller) setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadCategoryData]);
 
   const handleCategorySelect = useCallback(
-    async (category) => {
-      if (category === selectedCategory) return;
+    (category) => {
+      if (category === selectedCategoryRef.current) return;
+      selectedCategoryRef.current = category;
       setSelectedCategory(category);
-      await loadCategoryData(category);
+      loadCategoryData(category);
     },
-    [loadCategoryData, selectedCategory]
+    [loadCategoryData]
   );
 
   const onRefresh = useCallback(async () => {
@@ -157,7 +169,10 @@ const HomeScreen = () => {
     }
   }, [selectedCategory, loadCategoryData, loadData]);
 
-  const renderHeader = useCallback(
+  // ÖNEMLİ: ListHeaderComponent'e fonksiyon değil ELEMENT veriyoruz. Fonksiyon verilirse
+  // referansı her değiştiğinde React header'ı baştan mount eder; bu da kategori listesinin
+  // kaydırma konumunu ve görsellerini sıfırlıyordu.
+  const header = useMemo(
     () => (
       <>
         {featuredRecipe && (
@@ -217,15 +232,16 @@ const HomeScreen = () => {
           />
         )}
 
-        <View style={[homeStyles.recipesSection, homeStyles.sectionHeader]}>
+        <View
+          style={[
+            homeStyles.recipesSection,
+            homeStyles.sectionHeader,
+            { flexDirection: "row", alignItems: "center", gap: 10 },
+          ]}
+        >
           <Text style={homeStyles.sectionTitle}>{selectedCategory}</Text>
+          {categoryLoading && <ActivityIndicator size="small" color={COLORS.primary} />}
         </View>
-
-        {categoryLoading && (
-          <View style={{ paddingVertical: 20 }}>
-            <LoadingSpinner message="Loading recipes..." />
-          </View>
-        )}
       </>
     ),
     [featuredRecipe, categories, selectedCategory, categoryLoading, handleCategorySelect, router]
@@ -263,15 +279,25 @@ const HomeScreen = () => {
   return (
     <View style={homeStyles.container}>
       <FlatList
-        data={categoryLoading || error ? [] : recipes}
-        renderItem={({ item }) => <RecipeCard recipe={item} />}
+        // Yükleme sırasında listeyi boşaltmıyoruz; eski kartlar soluk kalır, sayfa yüksekliği
+        // ve kaydırma konumu değişmez.
+        data={error ? [] : recipes}
+        extraData={categoryLoading}
+        renderItem={({ item }) => (
+          <View
+            style={categoryLoading ? { opacity: 0.4 } : null}
+            pointerEvents={categoryLoading ? "none" : "auto"}
+          >
+            <RecipeCard recipe={item} />
+          </View>
+        )}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
         columnWrapperStyle={[homeStyles.row, { paddingHorizontal: 20 }]}
         contentContainerStyle={homeStyles.scrollContent}
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={header}
         ListEmptyComponent={renderEmpty}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
@@ -279,7 +305,6 @@ const HomeScreen = () => {
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         windowSize={5}
-        removeClippedSubviews
       />
     </View>
   );
