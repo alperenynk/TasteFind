@@ -8,6 +8,13 @@
       "when": 1783158546354,
       "tag": "0000_quick_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790842766954,
+      "tag": "0001_eager_loners",
+      "breakpoints": true
     }
   ]
 }
