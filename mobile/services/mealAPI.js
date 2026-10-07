@@ -1,9 +1,55 @@
-const BASE_URL = "https://www.themealdb.com/api/json/v1/1";
+// TheMealDB "1" anahtarı sadece geliştirme/test içindir. Mağazada yayınlanan uygulama için
+// TheMealDB destekçi (premium) anahtarı alıp EXPO_PUBLIC_MEALDB_KEY olarak ver.
+const API_KEY = process.env.EXPO_PUBLIC_MEALDB_KEY || "1";
+const BASE_URL = `https://www.themealdb.com/api/json/v1/${API_KEY}`;
+const REQUEST_TIMEOUT_MS = 10000;
 
-const isAbortError = (error) => error?.name === "AbortError";
+// Zaman aşımı + HTTP durum kontrolü. Hatalar artık yutulmuyor, çağıran ekran hata durumunu
+// gösterebilsin ("sonuç yok" ile "bağlantı hatası" birbirine karışmasın).
+// Çağıranın iptali AbortError, zaman aşımı ise normal Error olarak fırlatılır.
+const fetchJson = async (path, signal) => {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
 
-const getRandomItem = (array) => {
-  return array[Math.floor(Math.random() * array.length)];
+  const onAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", onAbort);
+  }
+
+  try {
+    const response = await fetch(`${BASE_URL}${path}`, { signal: controller.signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (timedOut) throw new Error("Request timed out");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
+  }
+};
+
+// Aynı tarif her açılışta aynı süre/porsiyon/açıklamayı göstersin diye
+// rastgele değil, tarif id'sinden türetilen sabit bir değer kullanıyoruz.
+const hashString = (value) => {
+  let hash = 0;
+  for (const char of String(value)) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+};
+
+const pickFor = (array, seed, salt) => array[(seed + salt * 7919) % array.length];
+
+const getYoutubeId = (url) => {
+  if (!url) return null;
+  const match = url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);
+  return match ? match[1] : null;
 };
 
 const cookTimes = [
@@ -40,10 +86,11 @@ const mealMeta = {};
 
 const getMealMeta = (id) => {
   if (!mealMeta[id]) {
+    const seed = hashString(id);
     mealMeta[id] = {
-      cookTime: getRandomItem(cookTimes),
-      servings: getRandomItem(servings),
-      description: getRandomItem(descriptions),
+      cookTime: pickFor(cookTimes, seed, 1),
+      servings: pickFor(servings, seed, 2),
+      description: pickFor(descriptions, seed, 3),
     };
   }
 
@@ -52,99 +99,53 @@ const getMealMeta = (id) => {
 
 export const MealAPI = {
   searchMealsByName: async (query, signal) => {
-    try {
-      const response = await fetch(
-        `${BASE_URL}/search.php?s=${encodeURIComponent(query)}`,
-        { signal }
-      );
-      const data = await response.json();
-      return data.meals || [];
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.error("Error searching meals by name:", error);
-      return [];
-    }
+    const data = await fetchJson(`/search.php?s=${encodeURIComponent(query)}`, signal);
+    return data.meals || [];
   },
 
   getMealById: async (id, signal) => {
-    try {
-      const response = await fetch(`${BASE_URL}/lookup.php?i=${id}`, { signal });
-      const data = await response.json();
-      return data.meals ? data.meals[0] : null;
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.error("Error getting meal by id:", error);
-      return null;
-    }
+    const data = await fetchJson(`/lookup.php?i=${encodeURIComponent(id)}`, signal);
+    return data.meals ? data.meals[0] : null;
   },
 
   getRandomMeal: async (signal) => {
-    try {
-      const response = await fetch(`${BASE_URL}/random.php`, { signal });
-      const data = await response.json();
-      return data.meals ? data.meals[0] : null;
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.error("Error getting random meal:", error);
-      return null;
-    }
+    const data = await fetchJson("/random.php", signal);
+    return data.meals ? data.meals[0] : null;
   },
 
-  // get multiple random meals
+  // Birden çok rastgele yemek. Kısmi başarısızlık tolere edilir; hepsi başarısızsa hata fırlatır.
   getRandomMeals: async (count = 6, signal) => {
-    try {
-      const promises = Array(count)
-        .fill()
-        .map(() => MealAPI.getRandomMeal(signal));
-      const meals = await Promise.all(promises);
-      return meals.filter((meal) => meal !== null);
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.error("Error getting random meals:", error);
-      return [];
+    const results = await Promise.allSettled(
+      Array.from({ length: count }, () => MealAPI.getRandomMeal(signal))
+    );
+
+    const meals = results
+      .filter((r) => r.status === "fulfilled" && r.value)
+      .map((r) => r.value);
+
+    if (meals.length === 0) {
+      const failure = results.find((r) => r.status === "rejected");
+      if (failure) throw failure.reason;
     }
+
+    // random.php aynı yemeği tekrar döndürebilir
+    const seen = new Set();
+    return meals.filter((m) => !seen.has(m.idMeal) && seen.add(m.idMeal));
   },
 
   getCategories: async (signal) => {
-    try {
-      const response = await fetch(`${BASE_URL}/categories.php`, { signal });
-      const data = await response.json();
-      return data.categories || [];
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.error("Error getting categories:", error);
-      return [];
-    }
+    const data = await fetchJson("/categories.php", signal);
+    return data.categories || [];
   },
 
   filterByIngredient: async (ingredient, signal) => {
-    try {
-      const response = await fetch(
-        `${BASE_URL}/filter.php?i=${encodeURIComponent(ingredient)}`,
-        { signal }
-      );
-      const data = await response.json();
-      return data.meals || [];
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.error("Error filtering by ingredient:", error);
-      return [];
-    }
+    const data = await fetchJson(`/filter.php?i=${encodeURIComponent(ingredient)}`, signal);
+    return data.meals || [];
   },
 
   filterByCategory: async (category, signal) => {
-    try {
-      const response = await fetch(
-        `${BASE_URL}/filter.php?c=${encodeURIComponent(category)}`,
-        { signal }
-      );
-      const data = await response.json();
-      return data.meals || [];
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      console.error("Error filtering by category:", error);
-      return [];
-    }
+    const data = await fetchJson(`/filter.php?c=${encodeURIComponent(category)}`, signal);
+    return data.meals || [];
   },
 
   transformMealData: (meal) => {
@@ -163,8 +164,12 @@ export const MealAPI = {
       }
     }
 
+    // "STEP 1", "2." gibi tek başına duran başlık satırlarını at
     const instructions = meal.strInstructions
-      ? meal.strInstructions.split(/\r?\n/).filter((step) => step.trim())
+      ? meal.strInstructions
+          .split(/\r?\n/)
+          .map((step) => step.trim())
+          .filter((step) => step && !/^(step\s*)?\d+[.):]?$/i.test(step))
       : [];
 
     return {
@@ -175,7 +180,9 @@ export const MealAPI = {
       cookTime: meta.cookTime,
       servings: meta.servings,
       category: meal.strCategory || "Main Course",
-      area: meal.strArea?.trim() || "Unknown",
+      // filter.php sonuçlarında area yoktu ve her karta "Unknown" yazılıyordu
+      area: meal.strArea?.trim() || null,
+      youtubeId: getYoutubeId(meal.strYoutube),
       ingredients,
       instructions,
       originalData: meal,
